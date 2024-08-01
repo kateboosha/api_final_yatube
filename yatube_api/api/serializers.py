@@ -56,17 +56,25 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class FollowSerializer(serializers.ModelSerializer):
-    user = serializers.SlugRelatedField(read_only=True, slug_field="username")
+    user = serializers.SlugRelatedField(
+        read_only=True,
+        slug_field='username',
+        default=serializers.CurrentUserDefault()
+    )
     following = serializers.SlugRelatedField(
         slug_field="username", queryset=User.objects.all()
     )
 
     class Meta:
         model = Follow
-        fields = (
-            "user",
-            "following",
-        )
+        fields = ("user", "following")
+        validators = [
+            serializers.UniqueTogetherValidator(
+                queryset=Follow.objects.all(),
+                fields=['user', 'following'],
+                message="Вы уже подписаны на этого пользователя."
+            )
+        ]
 
     def validate_following(self, value):
         request = self.context.get("request")
@@ -75,17 +83,3 @@ class FollowSerializer(serializers.ModelSerializer):
                 "Вы не можете подписаться на себя"
             )
         return value
-
-    def validate(self, data):
-        request = self.context.get("request")
-        if not request:
-            raise serializers.ValidationError("Требуется ввести запрос.")
-        if "following" not in data:
-            raise serializers.ValidationError("Требуется имя пользователя")
-        if Follow.objects.filter(
-            user=request.user, following=data["following"]
-        ).exists():
-            raise serializers.ValidationError(
-                "Вы уже подписаны на пользователя"
-            )
-        return data
